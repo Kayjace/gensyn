@@ -12,100 +12,41 @@ RL Swarm은 GensynAI에서 개발한 완전 오픈소스 프레임워크로, 인
   - A100
   - H100
 
-**참고**: CPU 전용 모드로 GPU 없이도 노드를 실행할 수 있습니다.
+**참고**: CPU 전용 모드로 맥에서 gpu없이 노드 실행이 가능합니다.
 
-## 1) 의존성 설치
-
-### 1. 시스템 패키지 업데이트
+**RL Swarm 노드 설치를 위해 해당 저장소의 gensyn.sh 스크립트를 사용할 수 있습니다. 이 스크립트는 시스템 패키지 업데이트부터 Docker, Python, Node.js, Yarn 등 모든 필요한 의존성을 설치합니다. 다음 명령어로 스크립트를 다운로드하고 실행할 수 있습니다:**
 
 ```bash
-sudo apt-get update && sudo apt-get upgrade -y
+curl -O https://raw.githubusercontent.com/Kayjace/gensyn/main/gensyn.sh
+chmod +x gensyn.sh
+./gensyn.sh
 ```
 
-### 2. 일반 유틸리티 및 도구 설치
+스크립트를 실행하면 대화형 모드에서 각 구성 요소의 설치 여부를 선택할 수 있습니다. 필요한 구성 요소만 설치하려면 해당 프롬프트에서 'y'를 입력하고, 그렇지 않으면 'n'을 입력하면 됩니다.
 
+## 설치 후에는 `$HOME/manage_rl_swarm.sh` 명령어로 관리 메뉴를 실행하여 노드를 시작하고 관리할 수 있습니다
+
+
+## HuggingFace 액세스 토큰 얻기
+
+1. HuggingFace(https://huggingface.co) 에 계정 생성 후 이메일 인증하기.
+2. 여기에서 쓰기 권한이 있는 액세스 토큰을 생성하고 저장 (https://huggingface.co/settings/tokens 에서 permission이 write인 토큰 생성. 이거 잊어버리면 그냥 재생성하고 다시 넣으셔도 됩니다. 에어드랍 받는 계정이랑 관계 x)
+
+
+## manage_rl_swarm.sh 말고 직접 실행하기
 ```bash
-sudo apt install screen curl iptables build-essential git wget lz4 jq make gcc nano automake autoconf tmux htop nvme-cli libgbm1 pkg-config libssl-dev libleveldb-dev tar clang bsdmainutils ncdu unzip libleveldb-dev -y
-```
-
-### 3. Docker 설치
-
-```bash
-# 기존 Docker 설치 제거
-for pkg in docker.io docker-doc docker-compose podman-docker containerd runc; do sudo apt-get remove $pkg; done
-
-# Docker 저장소 추가
-sudo apt-get update
-sudo apt-get install ca-certificates curl gnupg
-sudo install -m 0755 -d /etc/apt/keyrings
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-sudo chmod a+r /etc/apt/keyrings/docker.gpg
-
-echo \
-  "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-  "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | \
-  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-
-# Docker 설치
-sudo apt-get update
-sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-
-# Docker 테스트
-sudo docker run hello-world
-```
-
-**팁**: sudo 없이 Docker를 실행하려면 사용자를 Docker 그룹에 추가하세요:
-```bash
-sudo usermod -aG docker $USER
-```
-
-### 4. Python 설치
-
-```bash
-sudo apt-get install python3 python3-pip
-sudo apt install python3.10-venv
-```
-
-### 5. Node 설치
-
-```bash
-sudo apt-get update
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-sudo apt-get install -y nodejs
-node -v
-sudo npm install -g yarn
-yarn -v
-```
-
-### 6. Yarn 설치
-
-```bash
-curl -o- -L https://yarnpkg.com/install.sh | sh
-export PATH="$HOME/.yarn/bin:$HOME/.config/yarn/global/node_modules/.bin:$PATH"
-source ~/.bashrc
-```
-
-## 2) HuggingFace 액세스 토큰 얻기
-
-1. HuggingFace에 계정 생성
-2. 여기에서 쓰기 권한이 있는 액세스 토큰을 생성하고 저장
-
-## 3) 저장소 클론
-
-```bash
-git clone https://github.com/gensyn-ai/rl-swarm/
+cd $home
 cd rl-swarm
 ```
+후
 
-## 4) 스웜 실행
-
-백그라운드에서 실행하기 위한 스크린 열기:
+백그라운드에서 실행하기 위한 스크린 열기: (tmux를 쓰시거나 하면 생략 가능)
 
 ```bash
 screen -S swarm
 ```
 
-스웜 설치:
+**실행커맨드**
 
 ```bash
 python3 -m venv .venv
@@ -115,9 +56,9 @@ source .venv/bin/activate
 
 Y를 누르세요.
 
-## 5) 로그인
+## 로그인
 
-1. 로그에서 "Waiting for userData.json to be created..." 메시지가 표시되어야 합니다.
+1. Y를 눌렀다면 로그에서 "Waiting for userData.json to be created..." 메시지가 표시되어야 합니다.
 
 2. 브라우저에서 로그인 페이지 열기:
    - 로컬 PC: http://localhost:3000/
@@ -135,19 +76,21 @@ Y를 누르세요.
    VPS 비밀번호를 입력하라는 메시지가 표시되면 입력하여 VPS에 연결하고 터널링합니다.
    이제 브라우저에서 http://localhost:3000/을 열고 로그인합니다.
 
-4. 원하는 방법으로 로그인하세요.
+4. 원하는 방법으로 로그인하세요. (구글 계정 로그인 등 관계없음)
 
 5. 로그인 후 터미널에서 설치가 시작됩니다.
 
-6. 모델을 huggingface에 푸시:
-   메시지가 표시되면 생성한 HuggingFace 액세스 토큰을 입력하세요.
+6. 모델을 huggingface에 푸시할까요?
+   메시지가 표시되면 Y를 누르고 이전에 생성한 HuggingFace 액세스 토큰을 입력하세요. (리프레쉬해서 넣어도 관계없음)
 
-## 6) 백업
+## 백업 관련
 
 1. 노드 이름:
-   노드가 실행되기 시작하면 "Hello" 단어 뒤에 이름을 찾으세요. (터미널에서 CTRL+SHIFT+F를 사용하여 "Hello"를 검색할 수 있습니다)
-
-2. 노드 .pem 파일:
+   노드가 실행되기 시작하면 "Hello" 단어 뒤에 이름을 찾으세요. INFO:hivemind_exp.runner.grpo_runner:🐱 Hello 🐈 [단어 단어 단어] 형태 나오고 🦮 [자신의 피어 id]
+   INFO:hivemind_exp.runner.gensyn.testnet_grpo_runner:Registering self with peer ID 뒤에서도 peer id 확인 가능.
+   [단어 단어 단어] 의 노드 이름으로 이후 대시보드에서 노드 이름 검색 가능.
+   
+3. 노드 .pem 파일:
    swarm.pem 파일을 다음 디렉토리에 저장하세요: /root/rl-swarm/
 
 **스크린 명령어**:
@@ -155,7 +98,7 @@ Y를 누르세요.
 - 복귀: screen -r swarm
 - 중지 및 종료: screen -XS swarm quit
 
-## 7) Swarm 대시보드 UI 실행 (선택사항)
+## Swarm 대시보드 UI 실행 (선택사항) - 공식 대시보드도 있으므로 필수는 아닙니다.
 
 ```bash
 cd $HOME
@@ -169,6 +112,3 @@ docker compose up -d --build
 - 공식 대시보드: https://dashboard.gensyn.ai/
 
 첫 번째 훈련이 완료된 후 대시보드에서 노드 이름을 검색할 수 있습니다.
-
----
-Perplexity로부터의 답변: pplx.ai/share
