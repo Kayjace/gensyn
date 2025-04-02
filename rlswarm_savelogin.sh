@@ -83,7 +83,7 @@ if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; 
                 sleep 5  # Wait for 5 seconds before checking again
             done
             echo "userData.json and userApiKey.json found. Proceeding..."
-
+            
             ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
             echo "ORG_ID set to: $ORG_ID"
             
@@ -107,8 +107,11 @@ if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; 
                         sleep 5
                     fi
                 done
-            else
-                echo "API key file found, assuming it's already activated. Proceeding..."
+                
+                # 시간 초과 후에도 진행
+                if [ $ATTEMPTS -eq $MAX_ATTEMPTS ]; then
+                    echo "API key activation check timed out. Proceeding anyway..."
+                fi
             fi
 
             # Save the ORG_ID, USER_DATA_JSON and USER_API_KEY_JSON to .env file for future use
