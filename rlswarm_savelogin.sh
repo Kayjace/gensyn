@@ -86,19 +86,24 @@ if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; 
 
             ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
             echo "ORG_ID set to: $ORG_ID"
-
-            # Wait until the API key is activated by the client
-            echo "Waiting for API key to become activated..."
-            while true; do
-                STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
-                if [[ "$STATUS" == "activated" ]]; then
-                    echo "API key is activated! Proceeding..."
-                    break
-                else
-                    echo "Waiting for API key to be activated..."
-                    sleep 5
-                fi
-            done
+            
+            # 파일이 존재하면 API 키가 이미 활성화되었다고 가정하고 확인 단계 건너뛰기
+            if [ ! -f "modal-login/temp-data/userApiKey.json" ]; then
+                # Wait until the API key is activated by the client
+                echo "Waiting for API key to become activated..."
+                while true; do
+                    STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
+                    if [[ "$STATUS" == "activated" ]]; then
+                        echo "API key is activated! Proceeding..."
+                        break
+                    else
+                        echo "Waiting for API key to be activated..."
+                        sleep 5
+                    fi
+                done
+            else
+                echo "API key file found, assuming it's already activated. Proceeding..."
+            fi
 
             # Save the ORG_ID, USER_DATA_JSON and USER_API_KEY_JSON to .env file for future use
             if [ ! -f "$ROOT/.env" ]; then
