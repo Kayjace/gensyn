@@ -87,17 +87,23 @@ if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; 
             ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
             echo "ORG_ID set to: $ORG_ID"
             
-            # 파일이 존재하면 API 키가 이미 활성화되었다고 가정하고 확인 단계 건너뛰기
-            if [ ! -f "modal-login/temp-data/userApiKey.json" ]; then
-                # Wait until the API key is activated by the client
-                echo "Waiting for API key to become activated..."
-                while true; do
-                    STATUS=$(curl -s "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
+            # userApiKey.json이 존재하면 API 키가 이미 활성화되었다고 가정
+            if [ -f "modal-login/temp-data/userApiKey.json" ]; then
+                echo "userApiKey.json found. Assuming API key is already activated."
+            else
+                # API 키 활성화 확인 시도 (최대 30초)
+                echo "Checking API key activation status..."
+                ATTEMPTS=0
+                MAX_ATTEMPTS=6  # 최대 6번(30초) 시도
+                
+                while [ $ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+                    STATUS=$(curl -s -m 5 "http://localhost:3000/api/get-api-key-status?orgId=$ORG_ID")
                     if [[ "$STATUS" == "activated" ]]; then
                         echo "API key is activated! Proceeding..."
                         break
                     else
-                        echo "Waiting for API key to be activated..."
+                        echo "Waiting for API key to be activated... (attempt $((ATTEMPTS+1))/$MAX_ATTEMPTS)"
+                        ATTEMPTS=$((ATTEMPTS+1))
                         sleep 5
                     fi
                 done
