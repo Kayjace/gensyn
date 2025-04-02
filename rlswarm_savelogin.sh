@@ -35,7 +35,7 @@ DEFAULT_IDENTITY_PATH="$ROOT"/swarm.pem
 IDENTITY_PATH=${IDENTITY_PATH:-$DEFAULT_IDENTITY_PATH}
 
 # Check if ORG_ID is already set from .env file
-if [ -z "$ORG_ID" ]; then
+if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; then
     while true; do
         read -p "Would you like to connect to the Testnet? [Y/n] " yn
         yn=${yn:-Y}  # Default to "Y" if the user presses Enter
@@ -47,8 +47,8 @@ if [ -z "$ORG_ID" ]; then
     done
 
     if [ "$CONNECT_TO_TESTNET" = "True" ]; then
-        # Check if we have userData in .env
-        if [ -z "$USER_DATA_JSON" ]; then
+        # Check if we have userData and userApiKey in .env
+        if [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; then
             # No userData in .env, run modal_login as before
             echo "Please login to create an Ethereum Server Wallet"
             cd modal-login
@@ -77,12 +77,12 @@ if [ -z "$ORG_ID" ]; then
             open http://localhost:3000
             cd ..
 
-            # Wait until modal-login/temp-data/userData.json exists
-            while [ ! -f "modal-login/temp-data/userData.json" ]; do
-                echo "Waiting for userData.json to be created..."
+            # Wait until both userData.json and userApiKey.json exist
+            while [ ! -f "modal-login/temp-data/userData.json" ] || [ ! -f "modal-login/temp-data/userApiKey.json" ]; do
+                echo "Waiting for userData.json and userApiKey.json to be created..."
                 sleep 5  # Wait for 5 seconds before checking again
             done
-            echo "userData.json found. Proceeding..."
+            echo "userData.json and userApiKey.json found. Proceeding..."
 
             ORG_ID=$(awk 'BEGIN { FS = "\"" } !/^[ \t]*[{}]/ { print $(NF - 1); exit }' modal-login/temp-data/userData.json)
             echo "ORG_ID set to: $ORG_ID"
@@ -100,21 +100,40 @@ if [ -z "$ORG_ID" ]; then
                 fi
             done
 
-            # Save the ORG_ID to .env file for future use
+            # Save the ORG_ID, USER_DATA_JSON and USER_API_KEY_JSON to .env file for future use
             if [ ! -f "$ROOT/.env" ]; then
                 touch "$ROOT/.env"
             fi
+            
+            # Save ORG_ID
             if ! grep -q "ORG_ID=" "$ROOT/.env"; then
                 echo "ORG_ID=$ORG_ID" >> "$ROOT/.env"
             else
                 sed -i "s/ORG_ID=.*/ORG_ID=$ORG_ID/" "$ROOT/.env"
+            fi
+            
+            # Save USER_DATA_JSON
+            USER_DATA_CONTENT=$(cat modal-login/temp-data/userData.json | tr -d '\n' | sed 's/"/\\"/g')
+            if ! grep -q "USER_DATA_JSON=" "$ROOT/.env"; then
+                echo "USER_DATA_JSON=\"$USER_DATA_CONTENT\"" >> "$ROOT/.env"
+            else
+                # Use a different delimiter for sed because our content might contain slashes
+                sed -i "s|USER_DATA_JSON=.*|USER_DATA_JSON=\"$USER_DATA_CONTENT\"|" "$ROOT/.env"
+            fi
+            
+            # Save USER_API_KEY_JSON
+            USER_API_KEY_CONTENT=$(cat modal-login/temp-data/userApiKey.json | tr -d '\n' | sed 's/"/\\"/g')
+            if ! grep -q "USER_API_KEY_JSON=" "$ROOT/.env"; then
+                echo "USER_API_KEY_JSON=\"$USER_API_KEY_CONTENT\"" >> "$ROOT/.env"
+            else
+                # Use a different delimiter for sed because our content might contain slashes
+                sed -i "s|USER_API_KEY_JSON=.*|USER_API_KEY_JSON=\"$USER_API_KEY_CONTENT\"|" "$ROOT/.env"
             fi
 
             # Function to clean up the server process
             cleanup() {
                 echo "Shutting down server..."
                 kill $SERVER_PID
-                rm -r modal-login/temp-data/*.json
                 exit 0
             }
 
@@ -122,16 +141,26 @@ if [ -z "$ORG_ID" ]; then
             trap cleanup INT
         else
             # Use the userData from .env
-            echo "Using userData from .env file..."
+            echo "Using userData and userApiKey from .env file..."
             # Extract ORG_ID from USER_DATA_JSON
             # This assumes USER_DATA_JSON is formatted correctly
             ORG_ID=$(echo "$USER_DATA_JSON" | awk -F'"orgId":' '{print $2}' | awk -F'"' '{print $2}')
             echo "ORG_ID set to: $ORG_ID"
+            
+            # Create temporary files with the JSON content to be used by the application
+            mkdir -p modal-login/temp-data
+            echo "$USER_DATA_JSON" > modal-login/temp-data/userData.json
+            echo "$USER_API_KEY_JSON" > modal-login/temp-data/userApiKey.json
         fi
     fi
 else
-    echo "Using ORG_ID from .env file: $ORG_ID"
+    echo "Using ORG_ID, userData and userApiKey from .env file: $ORG_ID"
     CONNECT_TO_TESTNET=True
+    
+    # Ensure the temp-data directory exists and create the necessary JSON files
+    mkdir -p modal-login/temp-data
+    echo "$USER_DATA_JSON" > modal-login/temp-data/userData.json
+    echo "$USER_API_KEY_JSON" > modal-login/temp-data/userApiKey.json
 fi
 
 #lets go!
