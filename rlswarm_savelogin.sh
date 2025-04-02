@@ -113,7 +113,7 @@ if [ -z "$ORG_ID" ] || [ -z "$USER_DATA_JSON" ] || [ -z "$USER_API_KEY_JSON" ]; 
                     echo "API key activation check timed out. Proceeding anyway..."
                 fi
             fi
-
+            
             # Save the ORG_ID, USER_DATA_JSON and USER_API_KEY_JSON to .env file for future use
             if [ ! -f "$ROOT/.env" ]; then
                 touch "$ROOT/.env"
