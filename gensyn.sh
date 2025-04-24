@@ -263,8 +263,18 @@ install_rl_swarm() {
         if [ -d "$HOME/rl-swarm" ]; then
             read -p "RL Swarm 디렉토리가 이미 존재합니다. 다시 클론하시겠습니까? (y/n): " reclone
             if [[ "$reclone" == "y" ]]; then
+                # 백업 .pem 파일 (있는 경우)
+                if [ -f "$HOME/rl-swarm/swarm.pem" ]; then
+                    cp "$HOME/rl-swarm/swarm.pem" "$HOME/swarm.pem.backup"
+                    echo "기존 swarm.pem 파일이 백업되었습니다."
+                fi
                 rm -rf "$HOME/rl-swarm"
                 run_command git clone https://github.com/gensyn-ai/rl-swarm/
+                # 백업된 .pem 파일 복원 (있는 경우)
+                if [ -f "$HOME/swarm.pem.backup" ]; then
+                    cp "$HOME/swarm.pem.backup" "$HOME/rl-swarm/swarm.pem"
+                    echo "swarm.pem 파일이 복원되었습니다."
+                fi
             fi
         else
             run_command git clone https://github.com/gensyn-ai/rl-swarm/
@@ -381,7 +391,9 @@ while true; do
         SCREENLOG="$HOME/rl-swarm/screenlog.0"
         if [ -f "$SCREENLOG" ]; then
             NODE_NAME=$(grep -a "Hello" "$SCREENLOG" 2>/dev/null | tail -1 | grep -o "Hello [a-z ]*" | sed 's/Hello //' || echo "아직 설정되지 않음")
+            NODE_ID=$(grep -a "Node ID" "$SCREENLOG" 2>/dev/null | tail -1 | awk '{print $NF}' || echo "확인 불가")
             echo -e "${YELLOW}[노드 이름] ${NODE_NAME}${NC}"
+            echo -e "${YELLOW}[노드 ID] ${NODE_ID}${NC}"
         else
             echo -e "${YELLOW}[노드 이름] 로그 파일을 찾을 수 없습니다${NC}"
         fi
@@ -397,9 +409,10 @@ while true; do
     echo "5) 대시보드 UI 실행/재시작"
     echo "6) 시스템 정보 보기"
     echo "7) 로그 파일 정리"
-    echo "8) 종료"
+    echo "8) 노드 업데이트"
+    echo "9) 종료"
     
-    read -p "옵션 선택 (1-8): " choice
+    read -p "옵션 선택 (1-9): " choice
     
     case $choice in
         1)
@@ -409,6 +422,10 @@ while true; do
                 cd $HOME/rl-swarm
                 ./start_swarm.sh
                 echo -e "${GREEN}RL Swarm 노드가 시작되었습니다.${NC}"
+                echo -e "${YELLOW}로그인 페이지 접속 방법:${NC}"
+                echo -e "1. 로컬 PC: http://localhost:3000/"
+                echo -e "2. VPS 사용자: 로컬 PC에서 다음 명령 실행 후 http://localhost:3000/ 접속"
+                echo -e "   ssh -L 3000:localhost:3000 사용자명@서버IP -p SSH포트"
             fi
             ;;
         2)
@@ -487,6 +504,12 @@ while true; do
             echo -e "${BLUE}운영체제:${NC} $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d '"' -f 2)"
             echo -e "${BLUE}커널:${NC} $(uname -r)"
             
+            # GPU 정보 확인 (nvidia-smi가 있는 경우)
+            if command -v nvidia-smi &> /dev/null; then
+                echo -e "\n${YELLOW}GPU 정보:${NC}"
+                nvidia-smi --query-gpu=name,memory.total,memory.free --format=csv,noheader
+            fi
+            
             # 설치된 경우에만 표시
             if command -v docker &> /dev/null; then
                 echo -e "${BLUE}Docker:${NC} $(docker --version)"
@@ -537,6 +560,45 @@ while true; do
             fi
             ;;
         8)
+            echo -e "${YELLOW}노드 업데이트 옵션:${NC}"
+            echo "1) 기본 업데이트 (git pull)"
+            echo "2) 로컬 변경사항 초기화 후 업데이트"
+            echo "3) 완전 새로 설치 (swarm.pem 백업 유지)"
+            echo "4) 돌아가기"
+            
+            read -p "업데이트 방법 선택 (1-4): " update_choice
+            case $update_choice in
+                1)
+                    cd $HOME/rl-swarm
+                    git pull
+                    echo -e "${GREEN}RL Swarm이 업데이트되었습니다.${NC}"
+                    ;;
+                2)
+                    cd $HOME/rl-swarm
+                    git reset --hard
+                    git pull
+                    echo -e "${GREEN}RL Swarm이 초기화 후 업데이트되었습니다.${NC}"
+                    ;;
+                3)
+                    cd $HOME/rl-swarm
+                    if [ -f "./swarm.pem" ]; then
+                        cp ./swarm.pem ~/swarm.pem.backup
+                        echo -e "${YELLOW}swarm.pem 파일이 백업되었습니다.${NC}"
+                    fi
+                    cd ..
+                    rm -rf rl-swarm
+                    git clone https://github.com/gensyn-ai/rl-swarm
+                    cd rl-swarm
+                    if [ -f "$HOME/swarm.pem.backup" ]; then
+                        cp $HOME/swarm.pem.backup ./swarm.pem
+                        echo -e "${GREEN}swarm.pem 파일이 복원되었습니다.${NC}"
+                    fi
+                    echo -e "${GREEN}RL Swarm이 완전히 새로 설치되었습니다.${NC}"
+                    ;;
+                *) echo "돌아갑니다." ;;
+            esac
+            ;;
+        9)
             echo -e "${GREEN}RL Swarm 노드 관리 메뉴를 종료합니다.${NC}"
             exit 0
             ;;
@@ -561,15 +623,22 @@ installation_complete() {
     echo -e "${BLUE}=======================================================${NC}"
     echo -e "\n${YELLOW}다음 단계:${NC}"
     echo -e "1. 관리 메뉴를 실행하세요: ${GREEN}$HOME/manage_rl_swarm.sh${NC}"
-    echo -e "2. 메뉴에서 '1) RLSwarm 노드 시작'을 선택하여 노드를 실행하세요."
-echo -e "3. 대시보드 UI에 액세스하려면 다음 주소를 사용하세요:"
-echo -e " ${GREEN}로컬 액세스:${NC} http://0.0.0.0:8080"
-echo -e " ${GREEN}원격 액세스:${NC} http://$SERVER_IP:8080"
-echo -e "\n${YELLOW}중요:${NC} HuggingFace 액세스 토큰을 준비해 주세요. RL Swarm 실행 시 필요합니다."
-echo -e " ${BLUE}https://huggingface.co/settings/tokens${NC}에서 토큰을 생성하고 보관하세요."
+    echo -e "2. 메뉴에서 '1) RL Swarm 노드 시작'을 선택하여 노드를 실행하세요."
+    echo -e "3. 로그인 페이지 접속 방법:"
+    echo -e "   - 로컬 PC: ${GREEN}http://localhost:3000/${NC}"
+    echo -e "   - VPS 사용자: 로컬 PC에서 다음 명령 실행 후 ${GREEN}http://localhost:3000/${NC} 접속"
+    echo -e "     ${BLUE}ssh -L 3000:localhost:3000 사용자명@$SERVER_IP -p SSH포트${NC}"
+    echo -e "4. 대시보드 UI에 액세스하려면 다음 주소를 사용하세요:"
+    echo -e "   ${GREEN}로컬 액세스:${NC} http://0.0.0.0:8080"
+    echo -e "   ${GREEN}원격 액세스:${NC} http://$SERVER_IP:8080"
+    echo -e "\n${YELLOW}중요:${NC} HuggingFace 액세스 토큰을 준비해 주세요. RL Swarm 실행 시 필요합니다."
+    echo -e "   ${BLUE}https://huggingface.co/settings/tokens${NC}에서 'Write' 권한이 있는 토큰을 생성하고 보관하세요."
+    echo -e "\n${YELLOW}노드 상태 확인:${NC}"
+    echo -e "   텔레그램 봇: ${BLUE}https://t.me/gensyntrackbot${NC} - /check 명령어로 노드 ID 확인"
+    echo -e "   공식 대시보드: ${BLUE}https://dashboard.gensyn.ai/${NC}"
 }
 
-메인 설치 프로세스 실행
+# 메인 설치 프로세스 실행
 update_system
 install_utilities
 install_docker
